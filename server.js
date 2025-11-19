@@ -1,0 +1,205 @@
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// Tracking Database (simulated)
+const trackingDatabase = {
+  '30944SX22STP885': {
+    number: '30944SX22STP885',
+    status: 'In Transit',
+    origin: 'Istanbul, Turkey',
+    destination: 'Sparks, Nevada, USA',
+    expectedDelivery: '2025-11-20',
+    actualDelivery: null,
+    weight: '4.8 kg',
+    service: 'Global Precious Cargo Transport',
+    type: 'Precious Rocks & Geological Specimens',
+    insurance: 'Yes - Full Coverage ($150,000)',
+    recipient: 'Lorna Hayes, Sparks, Nevada',
+    carrier: 'Emirates, Lufthansa, United Cargo',
+    events: [
+      {
+        date: '2025-10-13',
+        location: 'Istanbul, Turkey (IST/SAW)',
+        desc: 'Shipment of precious rocks received and authenticated at Istanbul cargo terminal',
+        status: 'Received'
+      },
+      {
+        date: '2025-10-14',
+        location: 'Istanbul, Turkey',
+        desc: 'Full gemological analysis and valuation completed - $150,000 coverage approved',
+        status: 'Valuation Complete'
+      },
+      {
+        date: '2025-10-15',
+        location: 'Istanbul Sabiha Gökçen Airport (SAW)',
+        desc: 'Loaded onto Emirates Flight EK123 - Secure acceptance and customs documentation completed',
+        status: 'In Transit'
+      },
+      {
+        date: '2025-10-16',
+        location: 'Dubai International Airport (DXB)',
+        desc: 'Arrived Dubai hub - Transferred to Lufthansa secure cargo facility - All seals verified intact',
+        status: 'Transit Hub'
+      },
+      {
+        date: '2025-10-17',
+        location: 'Dubai (DXB)',
+        desc: 'UAE customs clearance completed - Export documentation finalized and approved',
+        status: 'Customs Cleared'
+      },
+      {
+        date: '2025-10-18',
+        location: 'Dubai → Frankfurt',
+        desc: 'Loaded onto Lufthansa Flight LH534 for Frankfurt with full armored security protocol',
+        status: 'In Transit'
+      },
+      {
+        date: '2025-10-19',
+        location: 'Frankfurt Airport (FRA)',
+        desc: 'Arrived Frankfurt - Transferred to secure U.S. customs pre-clearance facility',
+        status: 'Customs Processing'
+      },
+      {
+        date: '2025-10-20',
+        location: 'Frankfurt (FRA)',
+        desc: 'U.S. Customs pre-clearance completed - Loaded onto Lufthansa Flight LH441 for Chicago',
+        status: 'In Transit'
+      },
+      {
+        date: '2025-10-21',
+        location: 'Chicago O\'Hare International Airport (ORD)',
+        desc: 'Arrived U.S. - Primary customs entry point. Full inspection completed - all seals intact and contents verified',
+        status: 'Customs Cleared'
+      },
+      {
+        date: '2025-10-22',
+        location: 'Chicago (ORD)',
+        desc: 'Transferred to Brinks Secure Vault Facility for 2-week storage under 24/7 armored guard and insurance monitoring',
+        status: 'Secure Storage'
+      },
+      {
+        date: '2025-10-23',
+        location: 'Chicago Secure Vault (Brinks)',
+        desc: 'Storage day 1 - Shipment in secure vault with GPS monitoring and daily condition reports active',
+        status: 'In Vault Storage'
+      },
+      {
+        date: '2025-11-05',
+        location: 'Chicago O\'Hare (ORD)',
+        desc: 'Removed from vault - Final security inspection completed. Loaded onto United Cargo Flight UA1024 to Reno (with connection)',
+        status: 'In Transit'
+      },
+      {
+        date: '2025-11-06',
+        location: 'En Route Chicago → Denver → Reno',
+        desc: 'In flight - Real-time GPS tracking and armored courier escort monitoring active throughout journey',
+        status: 'Armored Transit'
+      },
+      {
+        date: '2025-11-07',
+        location: 'Reno-Tahoe International Airport (RNO)',
+        desc: 'Arrived Reno - Customs final clearance completed. Ready for armored ground delivery to Sparks',
+        status: 'Final Delivery Stage'
+      },
+      {
+        date: '2025-11-22',
+        location: 'Reno, Nevada',
+        desc: 'Shipment scheduled to depart Reno distribution center - Final delivery preparations in progress',
+        status: 'Scheduled Departure'
+      },
+      {
+        date: '2025-11-23',
+        location: 'Sparks, Nevada',
+        desc: 'Armored delivery vehicle scheduled to depart from RNO with certified security escorts',
+        status: 'Scheduled For Delivery'
+      },
+      {
+        date: '2025-11-24',
+        location: 'Sparks, Nevada - Lorna Hayes residence',
+        desc: 'Expected delivery at recipient location - Recipient Lorna Hayes to sign and confirm receipt',
+        status: 'Scheduled Delivery'
+      }
+    ]
+  }
+};
+
+// Routes
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'API is running', timestamp: new Date() });
+});
+
+// Track shipment
+app.post('/api/track', (req, res) => {
+  const { trackingNumber } = req.body;
+
+  if (!trackingNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tracking number is required'
+    });
+  }
+
+  const normalized = trackingNumber.trim().toUpperCase();
+  const shipment = trackingDatabase[normalized];
+
+  if (shipment) {
+    return res.status(200).json({
+      success: true,
+      data: shipment
+    });
+  } else {
+    return res.status(404).json({
+      success: false,
+      message: `No shipment found for tracking number: ${normalized}`
+    });
+  }
+});
+
+// Get all available tracking numbers (for testing)
+app.get('/api/available-tracking', (req, res) => {
+  const trackingNumbers = Object.keys(trackingDatabase);
+  res.json({
+    success: true,
+    message: 'Available tracking numbers for testing:',
+    data: trackingNumbers
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found'
+  });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`\n✅ Tracking API Server running on http://localhost:${PORT}`);
+  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🔍 Track endpoint: POST http://localhost:${PORT}/api/track`);
+  console.log(`📋 Available tracking numbers: GET http://localhost:${PORT}/api/available-tracking\n`);
+});
