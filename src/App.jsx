@@ -3,12 +3,15 @@ import React, { useState } from "react";
 // Llyods & Partners International — Full Website Styling Version
 // Clean, modern UI with hero section, improved layout, spacing, and brand identity.
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 export default function LlyodsTrackingApp() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState("home");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: "",
     email: "",
@@ -19,13 +22,27 @@ export default function LlyodsTrackingApp() {
   const [contactError, setContactError] = useState("");
   const [contactSuccess, setContactSuccess] = useState(false);
 
-
+  // Enhanced input validation and sanitization
   function validateInput(input) {
     const cleaned = input.trim();
     if (!cleaned) return "Please enter a tracking number.";
-    if (!/^[A-Za-z0-9-]+$/.test(cleaned)) return "Tracking number must be alphanumeric.";
-    if (cleaned.length < 8 || cleaned.length > 30) return "Tracking number looks invalid.";
+
+    // Only allow alphanumeric and hyphens
+    if (!/^[A-Za-z0-9-]+$/.test(cleaned)) {
+      return "Tracking number must contain only letters, numbers, and hyphens.";
+    }
+
+    // Check length
+    if (cleaned.length < 8 || cleaned.length > 30) {
+      return "Tracking number must be between 8 and 30 characters.";
+    }
+
     return "";
+  }
+
+  // Sanitize input to prevent XSS
+  function sanitizeInput(input) {
+    return input.trim().replace(/[^\w-]/g, '');
   }
 
   function lookupTracking(number) {
@@ -33,25 +50,35 @@ export default function LlyodsTrackingApp() {
     setError("");
     setResult(null);
 
+    // Sanitize input before sending
+    const sanitized = sanitizeInput(number).toUpperCase();
+
     // Simulate loading for 3-5 seconds
     const delay = Math.random() * 2000 + 3000; // 3-5 seconds in milliseconds
 
     setTimeout(() => {
-      // Call backend API
-      fetch('http://localhost:5000/api/track', {
+      // Call backend API with proper error handling
+      fetch(`${API_BASE_URL}/api/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ trackingNumber: number.trim().toUpperCase() })
+        credentials: 'same-origin',
+        body: JSON.stringify({ trackingNumber: sanitized }),
+        timeout: 10000, // 10 second timeout
       })
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.json();
+        })
         .then(data => {
           setLoading(false);
-          if (data.success) {
+          if (data.success && data.data) {
             setResult(data.data);
           } else {
-            setError(data.message || 'Unable to find shipment.');
+            setError(data.message || 'Unable to find shipment. Please check the tracking number.');
           }
         })
         .catch(error => {
@@ -125,11 +152,15 @@ export default function LlyodsTrackingApp() {
     }, 5000);
   }
 
-  function NavButton({ label, value }) {
+  function NavButton({ label, value, onClick }) {
     return (
       <button
-        onClick={() => setPage(value)}
-        className={`px-4 py-2 text-sm font-semibold transition rounded-md ${
+        onClick={() => {
+          setPage(value);
+          setMobileMenuOpen(false);
+          onClick?.();
+        }}
+        className={`px-4 py-2 text-sm font-semibold transition rounded-md w-full text-left md:w-auto md:text-center ${
           page === value
             ? "bg-blue-900 text-white shadow"
             : "text-gray-700 hover:bg-gray-200"
@@ -142,47 +173,75 @@ export default function LlyodsTrackingApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
-      {/* TOP NAV BAR */}
+      {/* TOP NAV BAR - RESPONSIVE */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          {/* Logo Section */}
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
             <img
               src="/lloyds and partners logo.png"
               alt="Llyods & Partners International Logo"
-              className="h-12 w-auto"
+              className="h-10 sm:h-12 w-auto flex-shrink-0"
             />
-            <h1 className="text-2xl font-extrabold text-blue-900 tracking-wide">
-              Llyods & Partners International
+            <h1 className="text-lg sm:text-2xl font-extrabold text-blue-900 tracking-wide truncate">
+              Llyods & Partners
             </h1>
           </div>
 
-          <nav className="flex gap-3">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex gap-1 lg:gap-3">
             <NavButton label="Home" value="home" />
             <NavButton label="Track" value="track" />
             <NavButton label="Services" value="services" />
             <NavButton label="About Us" value="about" />
             <NavButton label="Contact" value="contact" />
           </nav>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 hover:bg-gray-200 rounded-lg transition"
+            aria-label="Toggle menu"
+          >
+            <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <nav className="md:hidden bg-gray-50 border-t border-gray-200 px-4 py-3 space-y-2">
+            <NavButton label="Home" value="home" />
+            <NavButton label="Track" value="track" />
+            <NavButton label="Services" value="services" />
+            <NavButton label="About Us" value="about" />
+            <NavButton label="Contact" value="contact" />
+          </nav>
+        )}
       </header>
 
       {/* PAGE CONTENT */}
-      <main className="max-w-6xl mx-auto px-6 py-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
 
         {/* HOME PAGE */}
         {page === "home" && (
           <div className="space-y-10">
             {/* HERO SECTION */}
-            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-2xl p-12 shadow-lg">
-              <h2 className="text-5xl font-bold mb-4">Precious Cargo. Premium Service.</h2>
-              <p className="text-lg text-blue-100 max-w-3xl leading-relaxed">
+            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-2xl p-6 sm:p-12 shadow-lg">
+              <h2 className="text-3xl sm:text-5xl font-bold mb-4">Precious Cargo. Premium Service.</h2>
+              <p className="text-base sm:text-lg text-blue-100 max-w-3xl leading-relaxed">
                 Since 1996, Llyods & Partners International has specialized in secure, discreet shipping of precious materials, rare minerals, gemstones, and high-value cargo worldwide. From Dubai to the globe, we deliver trust.
               </p>
-              <div className="mt-8 flex gap-4">
-                <button onClick={() => setPage("services")} className="bg-white text-blue-900 px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <button onClick={() => setPage("services")} className="bg-white text-blue-900 px-6 sm:px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition text-center">
                   Explore Services
                 </button>
-                <button onClick={() => setPage("track")} className="bg-blue-700 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-600 transition">
+                <button onClick={() => setPage("track")} className="bg-blue-700 text-white px-6 sm:px-8 py-3 rounded-lg font-bold hover:bg-blue-600 transition text-center">
                   Track Shipment
                 </button>
               </div>
@@ -190,8 +249,8 @@ export default function LlyodsTrackingApp() {
 
             {/* WHY CHOOSE US - KEY FEATURES */}
             <section>
-              <h3 className="text-3xl font-bold text-blue-900 mb-8 text-center">Why Choose Llyods & Partners?</h3>
-              <div className="grid md:grid-cols-4 gap-6">
+              <h3 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-6 sm:mb-8 text-center">Why Choose Llyods & Partners?</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <div className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition">
                   <div className="text-4xl mb-3">💎</div>
                   <h4 className="font-bold text-lg text-blue-900 mb-2">Specialized Expertise</h4>
@@ -219,9 +278,9 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* COMPANY STATS */}
-            <section className="bg-blue-900 text-white rounded-xl p-10">
-              <h3 className="text-2xl font-bold mb-8 text-center">Trusted by Global Clients</h3>
-              <div className="grid md:grid-cols-4 gap-8 text-center">
+            <section className="bg-blue-900 text-white rounded-xl p-6 sm:p-10">
+              <h3 className="text-xl sm:text-2xl font-bold mb-6 sm:mb-8 text-center">Trusted by Global Clients</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8 text-center">
                 <div>
                   <div className="text-5xl font-bold mb-2">28+</div>
                   <p className="text-blue-100">Years of Excellence</p>
@@ -243,8 +302,8 @@ export default function LlyodsTrackingApp() {
 
             {/* SPECIALIZATIONS */}
             <section>
-              <h3 className="text-3xl font-bold text-blue-900 mb-8 text-center">Our Specializations</h3>
-              <div className="grid md:grid-cols-3 gap-6">
+              <h3 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-6 sm:mb-8 text-center">Our Specializations</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-8 rounded-xl">
                   <div className="text-4xl mb-3">💎</div>
                   <h4 className="font-bold text-xl text-blue-900 mb-3">Precious Materials</h4>
@@ -281,12 +340,12 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* CTA SECTION */}
-            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-10 text-center">
-              <h3 className="text-3xl font-bold mb-4">Ready to Ship Your Precious Cargo?</h3>
-              <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
+            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-6 sm:p-10 text-center">
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4">Ready to Ship Your Precious Cargo?</h3>
+              <p className="text-sm sm:text-base text-blue-100 mb-6 max-w-2xl mx-auto">
                 Contact us for a custom quote or to discuss your specific shipping needs. Our team is available 24/7.
               </p>
-              <button onClick={() => setPage("contact")} className="bg-white text-blue-900 px-10 py-4 rounded-lg font-bold hover:bg-gray-100 transition">
+              <button onClick={() => setPage("contact")} className="bg-white text-blue-900 px-6 sm:px-10 py-3 sm:py-4 rounded-lg font-bold hover:bg-gray-100 transition w-full sm:w-auto">
                 Get in Touch
               </button>
             </section>
@@ -295,17 +354,17 @@ export default function LlyodsTrackingApp() {
 
         {/* TRACK PAGE */}
         {page === "track" && (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {/* HERO SECTION */}
-            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-12">
-              <h2 className="text-4xl font-bold mb-4">Track Your Precious Cargo</h2>
-              <p className="text-xl text-blue-100">
+            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-6 sm:p-12">
+              <h2 className="text-2xl sm:text-4xl font-bold mb-4">Track Your Precious Cargo</h2>
+              <p className="text-sm sm:text-lg text-blue-100">
                 Real-time visibility of your shipment with complete chain-of-custody documentation and security updates at every stage of transit.
               </p>
             </section>
 
             {/* TRACKING FORM */}
-            <section className="bg-white rounded-xl shadow-lg p-10 max-w-3xl mx-auto w-full">
+            <section className="bg-white rounded-xl shadow-lg p-6 sm:p-10 max-w-3xl mx-auto w-full">
               <h3 className="text-2xl font-bold text-blue-900 mb-6">Enter Tracking Number</h3>
 
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -340,54 +399,54 @@ export default function LlyodsTrackingApp() {
                 <div className="mt-8 space-y-6">
                   {/* SHIPMENT DETAILS */}
                   <div>
-                    <h4 className="text-xl font-bold text-blue-900 mb-4">Shipment Details</h4>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg grid md:grid-cols-2 gap-6">
+                    <h4 className="text-lg sm:text-xl font-bold text-blue-900 mb-4">Shipment Details</h4>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Tracking Number</p>
-                        <p className="text-lg font-bold text-blue-900">{result.number}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Tracking Number</p>
+                        <p className="text-base sm:text-lg font-bold text-blue-900 break-all">{result.number}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Current Status</p>
-                        <p className="text-lg font-bold text-green-700">{result.status}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Current Status</p>
+                        <p className="text-base sm:text-lg font-bold text-green-700">{result.status}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Origin</p>
-                        <p className="text-lg font-bold text-gray-900">{result.origin}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Origin</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{result.origin}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Destination</p>
-                        <p className="text-lg font-bold text-gray-900">{result.destination}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Destination</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{result.destination}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Expected Delivery</p>
-                        <p className="text-lg font-bold text-gray-900">{formatDate(result.expectedDelivery)}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Expected Delivery</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{formatDate(result.expectedDelivery)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Weight</p>
-                        <p className="text-lg font-bold text-gray-900">{result.weight}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Weight</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{result.weight}</p>
                       </div>
-                      <div className="md:col-span-2">
-                        <p className="text-sm text-gray-600 mb-1">Service Type</p>
-                        <p className="text-lg font-bold text-gray-900">{result.service}</p>
+                      <div className="col-span-1 sm:col-span-2">
+                        <p className="text-xs sm:text-sm text-gray-600 mb-1">Service Type</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{result.service}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* TRACKING HISTORY */}
                   <div>
-                    <h4 className="text-xl font-bold text-blue-900 mb-4">Transit History</h4>
-                    <div className="bg-white border-2 border-gray-200 p-6 rounded-lg">
+                    <h4 className="text-lg sm:text-xl font-bold text-blue-900 mb-4">Transit History</h4>
+                    <div className="bg-white border-2 border-gray-200 p-4 sm:p-6 rounded-lg">
                       <div className="space-y-6">
                         {result.events.map((ev, idx) => (
-                          <div key={idx} className="flex gap-6">
-                            <div className="flex flex-col items-center">
-                              <div className="w-5 h-5 bg-blue-900 rounded-full border-4 border-blue-100"></div>
-                              {idx < result.events.length - 1 && <div className="w-1 h-16 bg-blue-200 my-2"></div>}
+                          <div key={idx} className="flex gap-3 sm:gap-6">
+                            <div className="flex flex-col items-center flex-shrink-0">
+                              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-900 rounded-full border-3 sm:border-4 border-blue-100"></div>
+                              {idx < result.events.length - 1 && <div className="w-1 h-12 sm:h-16 bg-blue-200 my-1 sm:my-2"></div>}
                             </div>
-                            <div className="pb-4">
-                              <p className="font-bold text-blue-900 text-lg">{ev.location}</p>
-                              <p className="text-gray-600 text-sm mb-1">{formatDate(ev.date)}</p>
-                              <p className="text-gray-700">{ev.desc}</p>
+                            <div className="pb-4 min-w-0">
+                              <p className="font-bold text-blue-900 text-base sm:text-lg break-words">{ev.location}</p>
+                              <p className="text-gray-600 text-xs sm:text-sm mb-1">{formatDate(ev.date)}</p>
+                              <p className="text-gray-700 text-sm break-words">{ev.desc}</p>
                             </div>
                           </div>
                         ))}
@@ -399,9 +458,9 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* INFO SECTION */}
-            <section className="bg-blue-50 rounded-xl p-10">
-              <h3 className="text-2xl font-bold text-blue-900 mb-6 text-center">How Our Tracking Works</h3>
-              <div className="grid md:grid-cols-3 gap-6">
+            <section className="bg-blue-50 rounded-xl p-6 sm:p-10">
+              <h3 className="text-xl sm:text-2xl font-bold text-blue-900 mb-6 text-center">How Our Tracking Works</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="text-4xl mb-3">📍</div>
                   <h4 className="font-bold text-lg text-blue-900 mb-2">Real-Time Location</h4>
@@ -427,11 +486,11 @@ export default function LlyodsTrackingApp() {
 
         {/* SERVICES PAGE */}
         {page === "services" && (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {/* Hero Section */}
-            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-12">
-              <h2 className="text-4xl font-bold mb-4">Premium Shipping Services</h2>
-              <p className="text-xl text-blue-100">
+            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-6 sm:p-12">
+              <h2 className="text-2xl sm:text-4xl font-bold mb-4">Premium Shipping Services</h2>
+              <p className="text-sm sm:text-lg text-blue-100">
                 Specialized logistics solutions for precious materials, high-value cargo, and confidential shipments worldwide
               </p>
             </section>
@@ -570,9 +629,9 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* Why Choose Us Section */}
-            <section className="bg-blue-50 rounded-xl p-10">
-              <h3 className="text-3xl font-bold text-blue-900 mb-8 text-center">Why Choose Llyods & Partners for Precious Cargo?</h3>
-              <div className="grid md:grid-cols-3 gap-6">
+            <section className="bg-blue-50 rounded-xl p-6 sm:p-10">
+              <h3 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-6 sm:mb-8 text-center">Why Choose Llyods & Partners for Precious Cargo?</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="text-3xl mb-3">✓</div>
                   <h4 className="font-bold text-lg text-blue-900 mb-2">Specialized Expertise</h4>
@@ -615,18 +674,18 @@ export default function LlyodsTrackingApp() {
 
         {/* ABOUT */}
         {page === "about" && (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {/* Hero Section */}
-            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-12">
-              <h2 className="text-4xl font-bold mb-6">About Llyods & Partners International</h2>
-              <p className="text-xl text-blue-100 leading-relaxed">
+            <section className="bg-gradient-to-r from-blue-900 to-blue-800 text-white rounded-xl p-6 sm:p-12">
+              <h2 className="text-2xl sm:text-4xl font-bold mb-6">About Llyods & Partners International</h2>
+              <p className="text-sm sm:text-lg text-blue-100 leading-relaxed">
                 A trusted leader in regional and international shipping, built on nearly three decades of excellence, integrity, and family legacy.
               </p>
             </section>
 
             {/* Company History */}
-            <section className="bg-white rounded-xl shadow-lg p-10">
-              <div className="space-y-8">
+            <section className="bg-white rounded-xl shadow-lg p-6 sm:p-10">
+              <div className="space-y-6 sm:space-y-8">
                 {/* Founded */}
                 <div className="border-l-4 border-blue-900 pl-6">
                   <h3 className="text-2xl font-bold text-blue-900 mb-3">🏛️ Our Heritage</h3>
@@ -662,9 +721,9 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* Key Values */}
-            <section className="bg-gray-50 rounded-xl p-10">
-              <h3 className="text-3xl font-bold text-blue-900 mb-8 text-center">Our Core Values</h3>
-              <div className="grid md:grid-cols-2 gap-8">
+            <section className="bg-gray-50 rounded-xl p-6 sm:p-10">
+              <h3 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-6 sm:mb-8 text-center">Our Core Values</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="text-4xl mb-3">🛡️</div>
                   <h4 className="font-bold text-lg text-blue-900 mb-2">Reliability</h4>
@@ -692,9 +751,9 @@ export default function LlyodsTrackingApp() {
             </section>
 
             {/* Stats Section */}
-            <section className="bg-blue-900 text-white rounded-xl p-10">
-              <h3 className="text-3xl font-bold mb-8 text-center">By The Numbers</h3>
-              <div className="grid md:grid-cols-4 gap-8 text-center">
+            <section className="bg-blue-900 text-white rounded-xl p-6 sm:p-10">
+              <h3 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center">By The Numbers</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8 text-center">
                 <div>
                   <div className="text-5xl font-bold mb-2">28+</div>
                   <p className="text-blue-100">Years of Experience</p>
@@ -718,11 +777,11 @@ export default function LlyodsTrackingApp() {
 
         {/* CONTACT */}
         {page === "contact" && (
-          <section className="bg-white rounded-xl shadow p-8 max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold text-blue-900 mb-8">Contact Us</h2>
+          <section className="bg-white rounded-xl shadow p-6 sm:p-8 max-w-2xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-8">Contact Us</h2>
 
             {/* Contact Info */}
-            <div className="grid md:grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mb-8">
               <div>
                 <h3 className="font-bold text-lg text-blue-900 mb-3">📍 Office</h3>
                 <p className="text-gray-700">Al Maktoom Cargo Tower</p>
@@ -761,7 +820,7 @@ export default function LlyodsTrackingApp() {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="contact-name" className="block text-sm font-semibold text-gray-700 mb-2">
                       Full Name *
@@ -793,7 +852,7 @@ export default function LlyodsTrackingApp() {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="contact-phone" className="block text-sm font-semibold text-gray-700 mb-2">
                       Phone Number *
@@ -859,8 +918,8 @@ export default function LlyodsTrackingApp() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-blue-900 text-white text-center py-4 mt-10">
-        <p className="text-sm">© {new Date().getFullYear()} Llyods & Partners International — Dubai, UAE</p>
+      <footer className="bg-blue-900 text-white text-center py-6 sm:py-8 mt-10">
+        <p className="text-xs sm:text-sm px-4">© {new Date().getFullYear()} Llyods & Partners International — Dubai, UAE</p>
       </footer>
     </div>
   );
