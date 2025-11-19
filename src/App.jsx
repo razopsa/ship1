@@ -147,7 +147,7 @@ export default function LlyodsTrackingApp() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img
-              src="./lloyds and partners logo.png"
+              src="/lloyds and partners logo.png"
               alt="Llyods & Partners International Logo"
               className="h-12 w-auto"
             />
