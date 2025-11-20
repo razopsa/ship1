@@ -2,15 +2,19 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Tracking Database (simulated)
 const trackingDatabase = {
@@ -19,7 +23,7 @@ const trackingDatabase = {
     status: 'In Transit',
     origin: 'Istanbul, Turkey',
     destination: 'Sparks, Nevada, USA',
-    expectedDelivery: '2025-11-20',
+    expectedDelivery: '2025-11-25',
     actualDelivery: null,
     weight: '4.8 kg',
     service: 'Global Precious Cargo Transport',
@@ -107,27 +111,27 @@ const trackingDatabase = {
         status: 'Armored Transit'
       },
       {
-        date: '2025-11-07',
+        date: '2025-11-13',
         location: 'Reno-Tahoe International Airport (RNO)',
         desc: 'Arrived Reno - Customs final clearance completed. Ready for armored ground delivery to Sparks',
         status: 'Final Delivery Stage'
       },
       {
         date: '2025-11-22',
-        location: 'Reno, Nevada',
-        desc: 'Shipment scheduled to depart Reno distribution center - Final delivery preparations in progress',
-        status: 'Scheduled Departure'
-      },
-      {
-        date: '2025-11-23',
-        location: 'Sparks, Nevada',
-        desc: 'Armored delivery vehicle scheduled to depart from RNO with certified security escorts',
-        status: 'Scheduled For Delivery'
+        location: 'Reno-Tahoe International Airport (RNO)',
+        desc: 'Final preparation completed - Shipment prepared for ground delivery to Sparks',
+        status: 'Ready for Delivery'
       },
       {
         date: '2025-11-24',
+        location: 'En Route to Sparks, Nevada',
+        desc: 'Armored delivery vehicle departed from RNO with certified security escorts - Real-time GPS monitoring active',
+        status: 'In Final Transit'
+      },
+      {
+        date: '2025-11-25',
         location: 'Sparks, Nevada - Lorna Hayes residence',
-        desc: 'Expected delivery at recipient location - Recipient Lorna Hayes to sign and confirm receipt',
+        desc: 'Expected arrival and delivery - Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
         status: 'Scheduled Delivery'
       }
     ]
@@ -178,13 +182,18 @@ app.get('/api/available-tracking', (req, res) => {
   });
 });
 
-// 404 handler
+// SPA fallback
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Endpoint not found'
-  });
+  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'Endpoint not found'
+    });
+  }
 });
+
 
 // Error handler
 app.use((err, req, res, next) => {
