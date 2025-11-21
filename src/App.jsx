@@ -108,7 +108,7 @@ export default function LlyodsTrackingApp() {
     }));
   }
 
-  function handleContactSubmit(e) {
+  async function handleContactSubmit(e) {
     e.preventDefault();
     setContactError("");
     setContactSuccess(false);
@@ -135,21 +135,39 @@ export default function LlyodsTrackingApp() {
       return;
     }
 
-    // Simulate form submission
-    console.log("Contact form submitted:", contactForm);
-    setContactSuccess(true);
-    setContactForm({
-      name: "",
-      email: "",
-      phone: "",
-      subject: "",
-      message: "",
-    });
+    try {
+      const response = await fetch('http://localhost:5000/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactForm),
+      });
 
-    // Reset success message after 5 seconds
-    setTimeout(() => {
-      setContactSuccess(false);
-    }, 5000);
+      const result = await response.json();
+
+      if (!response.ok) {
+        setContactError(result.message || "Failed to submit the form. Please try again.");
+        return;
+      }
+
+      setContactSuccess(true);
+      setContactForm({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+      });
+
+      // Reset success message after 5 seconds
+      setTimeout(() => {
+        setContactSuccess(false);
+      }, 5000);
+    } catch (err) {
+      console.error("Contact submission error:", err);
+      setContactError("An error occurred. Please check your connection and try again.");
+    }
   }
 
   function NavButton({ label, value, onClick }) {

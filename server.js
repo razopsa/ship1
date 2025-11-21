@@ -4,12 +4,19 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 // Middleware
 app.use(cors());
@@ -182,6 +189,66 @@ app.get('/api/available-tracking', (req, res) => {
   });
 });
 
+// Submit contact form
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, phone, subject, message } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !phone || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format'
+      });
+    }
+
+    // Insert into Supabase
+    const { data, error } = await supabase
+      .from('contact_submissions')
+      .insert([
+        {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          subject: subject.trim(),
+          message: message.trim(),
+          ip_address: req.ip,
+          user_agent: req.get('user-agent')
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to submit contact form. Please try again later.'
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Contact form submitted successfully',
+      data: data[0]
+    });
+  } catch (err) {
+    console.error('Contact submission error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while processing your request'
+    });
+  }
+});
+
 // SPA fallback
 app.use((req, res) => {
   if (req.method === 'GET' && !req.path.startsWith('/api/')) {
@@ -210,5 +277,6 @@ app.listen(PORT, () => {
   console.log(`\n✅ Tracking API Server running on http://localhost:${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🔍 Track endpoint: POST http://localhost:${PORT}/api/track`);
-  console.log(`📋 Available tracking numbers: GET http://localhost:${PORT}/api/available-tracking\n`);
+  console.log(`📋 Available tracking numbers: GET http://localhost:${PORT}/api/available-tracking`);
+  console.log(`📧 Contact form submission: POST http://localhost:${PORT}/api/contact\n`);
 });
