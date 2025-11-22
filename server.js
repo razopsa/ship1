@@ -21,7 +21,6 @@ const supabase = createClient(
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'dist')));
 
 // Tracking Database (simulated)
 const trackingDatabase = {
@@ -30,7 +29,7 @@ const trackingDatabase = {
     status: 'In Transit',
     origin: 'Istanbul, Turkey',
     destination: 'Sparks, Nevada, USA',
-    expectedDelivery: '2025-11-25',
+    expectedDelivery: '2025-11-27',
     actualDelivery: null,
     weight: '4.8 kg',
     service: 'Global Precious Cargo Transport',
@@ -140,6 +139,18 @@ const trackingDatabase = {
         location: 'Sparks, Nevada - Lorna Hayes residence',
         desc: 'Expected arrival and delivery - Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
         status: 'Scheduled Delivery'
+      },
+      {
+        date: '2025-11-26',
+        location: 'Sparks, Nevada - Lorna Hayes residence',
+        desc: 'Delivery in progress - Recipient Lorna Hayes coordinating final receipt of precious cargo',
+        status: 'In Final Transit'
+      },
+      {
+        date: '2025-11-27',
+        location: 'Sparks, Nevada - Lorna Hayes residence',
+        desc: 'Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
+        status: 'Scheduled Delivery'
       }
     ]
   }
@@ -189,13 +200,21 @@ app.get('/api/available-tracking', (req, res) => {
   });
 });
 
+// Test endpoint
+app.post('/api/test', (req, res) => {
+  res.json({ success: true, message: 'Test endpoint works', body: req.body });
+});
+
 // Submit contact form
 app.post('/api/contact', async (req, res) => {
+  console.log('Contact form request received');
   try {
     const { name, email, phone, subject, message } = req.body;
+    console.log('Parsed form data');
 
     // Validate required fields
     if (!name || !email || !phone || !subject || !message) {
+      console.log('Validation failed: missing fields');
       return res.status(400).json({
         success: false,
         message: 'All fields are required'
@@ -205,14 +224,17 @@ app.post('/api/contact', async (req, res) => {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
+      console.log('Email validation failed');
       return res.status(400).json({
         success: false,
         message: 'Invalid email format'
       });
     }
 
-    // Insert into Supabase
-    const { data, error } = await supabase
+    console.log('All validation passed, attempting Supabase insert...');
+
+    // Insert into Supabase with timeout
+    const insertPromise = supabase
       .from('contact_submissions')
       .insert([
         {
@@ -227,40 +249,55 @@ app.post('/api/contact', async (req, res) => {
       ])
       .select();
 
+    console.log('Insert query created, awaiting response...');
+    const { data, error } = await Promise.race([
+      insertPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase timeout')), 5000)
+      )
+    ]);
+
+    console.log('Supabase response received');
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error details:', error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to submit contact form. Please try again later.'
+        message: 'Failed to submit contact form. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
 
+    console.log('Contact form submitted successfully:', data);
     res.status(201).json({
       success: true,
       message: 'Contact form submitted successfully',
       data: data[0]
     });
   } catch (err) {
-    console.error('Contact submission error:', err);
+    console.error('Contact submission error:', err.message || err);
+    console.error('Stack:', err.stack);
     res.status(500).json({
       success: false,
-      message: 'An error occurred while processing your request'
+      message: 'An error occurred while processing your request',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 });
 
-// SPA fallback
+// Serve static files from dist
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// 404 handler for API routes and SPA fallback
 app.use((req, res) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-  } else {
-    res.status(404).json({
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({
       success: false,
-      message: 'Endpoint not found'
+      message: 'API endpoint not found'
     });
   }
+  // SPA fallback - serve index.html for all non-API routes
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
-
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -270,6 +307,16 @@ app.use((err, req, res, next) => {
     message: 'Internal server error',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
 });
 
 // Start server
