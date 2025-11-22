@@ -811,6 +811,11 @@ export default function LlyodsTrackingApp() {
                 <p className="text-gray-700">San Jose, California 95126</p>
               </div>
               <div>
+                <h3 className="font-bold text-lg text-blue-900 mb-3">📍 Istanbul Office</h3>
+                <p className="text-gray-700">Levent Mahallesi, Cargo Terminal</p>
+                <p className="text-gray-700">Istanbul, Turkey</p>
+              </div>
+              <div>
                 <h3 className="font-bold text-lg text-blue-900 mb-3">☎️ Phone (USA)</h3>
                 <p className="text-gray-700">+1 (408) 560-0436</p>
               </div>
