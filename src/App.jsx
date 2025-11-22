@@ -823,6 +823,10 @@ export default function LlyodsTrackingApp() {
                 <h3 className="font-bold text-lg text-blue-900 mb-3">☎️ Phone (Dubai)</h3>
                 <p className="text-gray-700">+971 4 555 9231</p>
               </div>
+              <div>
+                <h3 className="font-bold text-lg text-blue-900 mb-3">☎️ Phone (Istanbul)</h3>
+                <p className="text-gray-700">+90 212 555 8765</p>
+              </div>
             </div>
 
             {/* Contact Form Instructions */}
