@@ -799,34 +799,34 @@ export default function LlyodsTrackingApp() {
             <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-8">Contact Us</h2>
 
             {/* Contact Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-8">
-              <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-900">
-                <h3 className="font-bold text-lg text-blue-900 mb-3">📍 Dubai Office</h3>
-                <p className="text-gray-700 mb-2">Al Maktoom Cargo Tower</p>
-                <p className="text-gray-700 mb-4">Dubai Logistics District</p>
-                <div className="border-t pt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+              <div className="bg-blue-50 p-4 sm:p-6 rounded-lg border-l-4 border-blue-900">
+                <h3 className="font-bold text-base sm:text-lg text-blue-900 mb-2 sm:mb-3">📍 Dubai, UAE</h3>
+                <p className="text-sm sm:text-base text-gray-700 mb-1">Al Maktoom Cargo Tower</p>
+                <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">Dubai Logistics District</p>
+                <div className="border-t pt-2 sm:pt-3">
                   <p className="text-xs text-gray-600 font-semibold mb-1">Phone</p>
-                  <p className="text-blue-900 font-bold">+971 4 555 9231</p>
+                  <p className="text-blue-900 font-bold text-sm sm:text-base">+971 4 555 9231</p>
                 </div>
               </div>
 
-              <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-900">
-                <h3 className="font-bold text-lg text-blue-900 mb-3">📍 USA Office</h3>
-                <p className="text-gray-700 mb-2">1845 The Alameda</p>
-                <p className="text-gray-700 mb-4">San Jose, California 95126</p>
-                <div className="border-t pt-3">
+              <div className="bg-blue-50 p-4 sm:p-6 rounded-lg border-l-4 border-blue-900">
+                <h3 className="font-bold text-base sm:text-lg text-blue-900 mb-2 sm:mb-3">📍 San Jose, USA</h3>
+                <p className="text-sm sm:text-base text-gray-700 mb-1">1845 The Alameda</p>
+                <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">San Jose, California 95126</p>
+                <div className="border-t pt-2 sm:pt-3">
                   <p className="text-xs text-gray-600 font-semibold mb-1">Phone</p>
-                  <p className="text-blue-900 font-bold">+1 (408) 560-0436</p>
+                  <p className="text-blue-900 font-bold text-sm sm:text-base">+1 (408) 560-0436</p>
                 </div>
               </div>
 
-              <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-900">
-                <h3 className="font-bold text-lg text-blue-900 mb-3">📍 Istanbul Office</h3>
-                <p className="text-gray-700 mb-2">Levent Mahallesi, Cargo Terminal</p>
-                <p className="text-gray-700 mb-4">Istanbul, Turkey</p>
-                <div className="border-t pt-3">
+              <div className="bg-blue-50 p-4 sm:p-6 rounded-lg border-l-4 border-blue-900">
+                <h3 className="font-bold text-base sm:text-lg text-blue-900 mb-2 sm:mb-3">📍 Istanbul, Turkey</h3>
+                <p className="text-sm sm:text-base text-gray-700 mb-1">Levent Mahallesi, Cargo Terminal</p>
+                <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">Istanbul, Turkey</p>
+                <div className="border-t pt-2 sm:pt-3">
                   <p className="text-xs text-gray-600 font-semibold mb-1">Phone</p>
-                  <p className="text-blue-900 font-bold">+90 212 555 8765</p>
+                  <p className="text-blue-900 font-bold text-sm sm:text-base">+90 212 555 8765</p>
                 </div>
               </div>
             </div>
@@ -954,8 +954,13 @@ export default function LlyodsTrackingApp() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-blue-900 text-white text-center py-6 sm:py-8 mt-10">
-        <p className="text-xs sm:text-sm px-4">© {new Date().getFullYear()} Llyods & Partners International — Dubai, UAE</p>
+      <footer className="bg-blue-900 text-white py-6 sm:py-8 mt-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center">
+            <p className="text-xs sm:text-sm mb-2">© {new Date().getFullYear()} Llyods & Partners International</p>
+            <p className="text-xs text-blue-100">Operating in: Dubai, UAE • San Jose, USA • Istanbul, Turkey</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
