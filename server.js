@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+import { trackingDatabase } from './netlify/functions/trackingDatabase.js';
 
 dotenv.config();
 
@@ -22,145 +23,60 @@ const supabase = createClient(
 app.use(cors());
 app.use(bodyParser.json());
 
-// Tracking Database (simulated)
-const trackingDatabase = {
-  '30944SX22STP885': {
-    number: '30944SX22STP885',
-    status: 'In Transit',
-    origin: 'Istanbul, Turkey',
-    destination: 'Sparks, Nevada, USA',
-    expectedDelivery: '2025-11-27',
-    actualDelivery: null,
-    weight: '4.8 kg',
-    service: 'Global Precious Cargo Transport',
-    type: 'Precious Rocks & Geological Specimens',
-    insurance: 'Yes - Full Coverage ($150,000)',
-    recipient: 'Lorna Hayes, Sparks, Nevada',
-    carrier: 'Emirates, Lufthansa, United Cargo',
-    events: [
-      {
-        date: '2025-10-13',
-        location: 'Istanbul, Turkey (IST/SAW)',
-        desc: 'Shipment of precious rocks received and authenticated at Istanbul cargo terminal',
-        status: 'Received'
-      },
-      {
-        date: '2025-10-14',
-        location: 'Istanbul, Turkey',
-        desc: 'Full gemological analysis and valuation completed - $150,000 coverage approved',
-        status: 'Valuation Complete'
-      },
-      {
-        date: '2025-10-15',
-        location: 'Istanbul Sabiha Gökçen Airport (SAW)',
-        desc: 'Loaded onto Emirates Flight EK123 - Secure acceptance and customs documentation completed',
-        status: 'In Transit'
-      },
-      {
-        date: '2025-10-16',
-        location: 'Dubai International Airport (DXB)',
-        desc: 'Arrived Dubai hub - Transferred to Lufthansa secure cargo facility - All seals verified intact',
-        status: 'Transit Hub'
-      },
-      {
-        date: '2025-10-17',
-        location: 'Dubai (DXB)',
-        desc: 'UAE customs clearance completed - Export documentation finalized and approved',
-        status: 'Customs Cleared'
-      },
-      {
-        date: '2025-10-18',
-        location: 'Dubai → Frankfurt',
-        desc: 'Loaded onto Lufthansa Flight LH534 for Frankfurt with full armored security protocol',
-        status: 'In Transit'
-      },
-      {
-        date: '2025-10-19',
-        location: 'Frankfurt Airport (FRA)',
-        desc: 'Arrived Frankfurt - Transferred to secure U.S. customs pre-clearance facility',
-        status: 'Customs Processing'
-      },
-      {
-        date: '2025-10-20',
-        location: 'Frankfurt (FRA)',
-        desc: 'U.S. Customs pre-clearance completed - Loaded onto Lufthansa Flight LH441 for Chicago',
-        status: 'In Transit'
-      },
-      {
-        date: '2025-10-21',
-        location: 'Chicago O\'Hare International Airport (ORD)',
-        desc: 'Arrived U.S. - Primary customs entry point. Full inspection completed - all seals intact and contents verified',
-        status: 'Customs Cleared'
-      },
-      {
-        date: '2025-10-22',
-        location: 'Chicago (ORD)',
-        desc: 'Transferred to Brinks Secure Vault Facility for 2-week storage under 24/7 armored guard and insurance monitoring',
-        status: 'Secure Storage'
-      },
-      {
-        date: '2025-10-23',
-        location: 'Chicago Secure Vault (Brinks)',
-        desc: 'Storage day 1 - Shipment in secure vault with GPS monitoring and daily condition reports active',
-        status: 'In Vault Storage'
-      },
-      {
-        date: '2025-11-05',
-        location: 'Chicago O\'Hare (ORD)',
-        desc: 'Removed from vault - Final security inspection completed. Loaded onto United Cargo Flight UA1024 to Reno (with connection)',
-        status: 'In Transit'
-      },
-      {
-        date: '2025-11-06',
-        location: 'En Route Chicago → Denver → Reno',
-        desc: 'In flight - Real-time GPS tracking and armored courier escort monitoring active throughout journey',
-        status: 'Armored Transit'
-      },
-      {
-        date: '2025-11-13',
-        location: 'Reno-Tahoe International Airport (RNO)',
-        desc: 'Arrived Reno - Customs final clearance completed. Ready for armored ground delivery to Sparks',
-        status: 'Final Delivery Stage'
-      },
-      {
-        date: '2025-11-22',
-        location: 'Reno-Tahoe International Airport (RNO)',
-        desc: 'Final preparation completed - Shipment prepared for ground delivery to Sparks',
-        status: 'Ready for Delivery'
-      },
-      {
-        date: '2025-11-24',
-        location: 'En Route to Sparks, Nevada',
-        desc: 'Armored delivery vehicle departed from RNO with certified security escorts - Real-time GPS monitoring active',
-        status: 'In Final Transit'
-      },
-      {
-        date: '2025-11-25',
-        location: 'Sparks, Nevada - Lorna Hayes residence',
-        desc: 'Expected arrival and delivery - Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
-        status: 'Scheduled Delivery'
-      },
-      {
-        date: '2025-11-26',
-        location: 'Sparks, Nevada - Lorna Hayes residence',
-        desc: 'Delivery in progress - Recipient Lorna Hayes coordinating final receipt of precious cargo',
-        status: 'In Final Transit'
-      },
-      {
-        date: '2025-11-27',
-        location: 'Sparks, Nevada - Lorna Hayes residence',
-        desc: 'Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
-        status: 'Scheduled Delivery'
-      }
-    ]
+// Environment validation on startup
+function validateEnvironment() {
+  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const missing = required.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    console.warn(`⚠️  Missing environment variables: ${missing.join(', ')}`);
+    console.warn('⚠️  Contact form will fail without these variables');
+  } else {
+    console.log('✅ All required environment variables configured');
   }
-};
+}
+
+// Supabase schema validation
+async function validateSupabaseSchema() {
+  try {
+    const { data, error } = await supabase
+      .from('contact_submissions')
+      .select('*')
+      .limit(0);
+
+    if (error) {
+      console.error('❌ Supabase schema validation failed:', error.message);
+      console.error('   Make sure "contact_submissions" table exists in your database');
+      return false;
+    }
+
+    console.log('✅ Supabase schema validated - contact_submissions table exists');
+    return true;
+  } catch (err) {
+    console.error('❌ Failed to validate Supabase schema:', err.message);
+    return false;
+  }
+}
+
+// Run validations on startup
+validateEnvironment();
+validateSupabaseSchema().catch(err => {
+  console.error('Schema validation error:', err);
+});
 
 // Routes
 
-// Health check
+// Health check with diagnostics
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'API is running', timestamp: new Date() });
+  const health = {
+    status: 'API is running',
+    timestamp: new Date(),
+    environment: {
+      supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
+      nodeEnv: process.env.NODE_ENV || 'development'
+    }
+  };
+  res.json(health);
 });
 
 // Track shipment
@@ -200,38 +116,181 @@ app.get('/api/available-tracking', (req, res) => {
   });
 });
 
-// Test endpoint
+// Test endpoint - basic connectivity
 app.post('/api/test', (req, res) => {
   res.json({ success: true, message: 'Test endpoint works', body: req.body });
 });
 
-// Submit contact form
+// Comprehensive diagnostics endpoint
+app.get('/api/diagnostics', async (req, res) => {
+  console.log('📊 Running diagnostics...');
+
+  const diagnostics = {
+    timestamp: new Date().toISOString(),
+    server: {
+      running: true,
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development'
+    },
+    environment: {
+      supabaseUrlSet: !!process.env.SUPABASE_URL,
+      supabaseKeySet: !!process.env.SUPABASE_ANON_KEY
+    },
+    supabase: {
+      connected: false,
+      tableExists: false,
+      error: null
+    },
+    endpoints: {
+      track: '/api/track (POST)',
+      contact: '/api/contact (POST)',
+      health: '/api/health (GET)',
+      diagnostics: '/api/diagnostics (GET)'
+    }
+  };
+
+  // Test Supabase connection
+  try {
+    const { data, error } = await supabase
+      .from('contact_submissions')
+      .select('*')
+      .limit(0);
+
+    if (error) {
+      diagnostics.supabase.error = error.message;
+      console.error('❌ Supabase connection failed:', error.message);
+    } else {
+      diagnostics.supabase.connected = true;
+      diagnostics.supabase.tableExists = true;
+      console.log('✅ Supabase connected and table exists');
+    }
+  } catch (err) {
+    diagnostics.supabase.error = err.message;
+    console.error('❌ Supabase test failed:', err.message);
+  }
+
+  res.json(diagnostics);
+});
+
+// Contact form test endpoint
+app.post('/api/contact-test', async (req, res) => {
+  console.log('🧪 Testing contact form submission...');
+
+  const testData = {
+    name: 'Test User',
+    email: 'test@example.com',
+    phone: '+1234567890',
+    subject: 'Test Submission',
+    message: 'This is a test contact form submission to verify the endpoint is working.'
+  };
+
+  try {
+    // Validate environment
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return res.status(503).json({
+        success: false,
+        message: 'Supabase not configured',
+        test: 'failed'
+      });
+    }
+
+    // Try to submit
+    const { data, error } = await supabase
+      .from('contact_submissions')
+      .insert([testData])
+      .select();
+
+    if (error) {
+      console.error('❌ Test submission failed:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Test submission failed',
+        error: error.message,
+        test: 'failed'
+      });
+    }
+
+    if (!data || data.length === 0) {
+      console.error('❌ Test submission returned empty response');
+      return res.status(500).json({
+        success: false,
+        message: 'Test submission returned empty response',
+        test: 'failed'
+      });
+    }
+
+    console.log('✅ Test submission successful');
+    res.json({
+      success: true,
+      message: 'Test contact submission successful',
+      test: 'passed',
+      recordId: data[0].id
+    });
+  } catch (err) {
+    console.error('❌ Test submission error:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Test submission error',
+      error: err.message,
+      test: 'failed'
+    });
+  }
+});
+
+// Submit contact form with fallback logging
 app.post('/api/contact', async (req, res) => {
-  console.log('Contact form request received');
+  const timestamp = new Date().toISOString();
+  const contactLog = {
+    timestamp,
+    ip: req.ip,
+    userAgent: req.get('user-agent')
+  };
+
+  console.log(`📨 [${timestamp}] Contact form request received from ${req.ip}`);
+
   try {
     const { name, email, phone, subject, message } = req.body;
-    console.log('Parsed form data');
+
+    contactLog.formData = {
+      name: name?.substring(0, 50),
+      email,
+      phone: phone?.substring(0, 20),
+      subject,
+      messageLength: message?.length || 0
+    };
 
     // Validate required fields
     if (!name || !email || !phone || !subject || !message) {
-      console.log('Validation failed: missing fields');
+      console.warn(`⚠️  [${timestamp}] Validation failed - missing required fields`);
       return res.status(400).json({
         success: false,
-        message: 'All fields are required'
+        message: 'All fields are required',
+        timestamp
       });
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      console.log('Email validation failed');
+      console.warn(`⚠️  [${timestamp}] Email validation failed for: ${email}`);
       return res.status(400).json({
         success: false,
-        message: 'Invalid email format'
+        message: 'Invalid email format',
+        timestamp
       });
     }
 
-    console.log('All validation passed, attempting Supabase insert...');
+    console.log(`✓ [${timestamp}] All validations passed for ${email}`);
+
+    // Check if Supabase is configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      console.error(`❌ [${timestamp}] Supabase not configured - cannot submit form`);
+      return res.status(503).json({
+        success: false,
+        message: 'Database service temporarily unavailable',
+        timestamp
+      });
+    }
 
     // Insert into Supabase with timeout
     const insertPromise = supabase
@@ -249,36 +308,73 @@ app.post('/api/contact', async (req, res) => {
       ])
       .select();
 
-    console.log('Insert query created, awaiting response...');
+    console.log(`🔄 [${timestamp}] Sending to Supabase...`);
+
     const { data, error } = await Promise.race([
       insertPromise,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Supabase timeout')), 5000)
+        setTimeout(() => reject(new Error('Supabase timeout after 5000ms')), 5000)
       )
     ]);
 
-    console.log('Supabase response received');
     if (error) {
-      console.error('Supabase error details:', error);
+      console.error(`❌ [${timestamp}] Supabase error:`, error.message);
+      console.error('   Error code:', error.code);
+      console.error('   Error details:', error.details);
+
+      // Log to fallback (file/console for now)
+      console.error('   FALLBACK LOG: Contact submission failed for', {
+        email,
+        timestamp,
+        errorMessage: error.message
+      });
+
       return res.status(500).json({
         success: false,
         message: 'Failed to submit contact form. Please try again later.',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        timestamp,
+        error: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          code: error.code
+        } : undefined
       });
     }
 
-    console.log('Contact form submitted successfully:', data);
+    if (!data || data.length === 0) {
+      console.warn(`⚠️  [${timestamp}] Supabase returned empty response for ${email}`);
+      return res.status(500).json({
+        success: false,
+        message: 'Form submitted but could not confirm receipt',
+        timestamp
+      });
+    }
+
+    console.log(`✅ [${timestamp}] Contact form submitted successfully for ${email}`);
     res.status(201).json({
       success: true,
       message: 'Contact form submitted successfully',
-      data: data[0]
+      timestamp,
+      data: {
+        id: data[0].id,
+        email: data[0].email,
+        submittedAt: data[0].created_at
+      }
     });
   } catch (err) {
-    console.error('Contact submission error:', err.message || err);
-    console.error('Stack:', err.stack);
+    console.error(`❌ [${timestamp}] Unexpected error:`, err.message);
+    console.error('   Stack:', err.stack);
+
+    // Fallback logging for unexpected errors
+    console.error('   FALLBACK LOG: Unexpected error in contact submission', {
+      timestamp,
+      errorMessage: err.message,
+      errorStack: err.stack?.substring(0, 200)
+    });
+
     res.status(500).json({
       success: false,
       message: 'An error occurred while processing your request',
+      timestamp,
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
@@ -321,9 +417,16 @@ process.on('uncaughtException', (err) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\n✅ Tracking API Server running on http://localhost:${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🔍 Track endpoint: POST http://localhost:${PORT}/api/track`);
-  console.log(`📋 Available tracking numbers: GET http://localhost:${PORT}/api/available-tracking`);
-  console.log(`📧 Contact form submission: POST http://localhost:${PORT}/api/contact\n`);
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`✅ Tracking API Server running on http://localhost:${PORT}`);
+  console.log(`${'='.repeat(60)}`);
+  console.log('\n📍 Available Endpoints:');
+  console.log(`  GET  http://localhost:${PORT}/api/health`);
+  console.log(`  GET  http://localhost:${PORT}/api/diagnostics`);
+  console.log(`  POST http://localhost:${PORT}/api/track`);
+  console.log(`  GET  http://localhost:${PORT}/api/available-tracking`);
+  console.log(`  POST http://localhost:${PORT}/api/contact`);
+  console.log(`  POST http://localhost:${PORT}/api/contact-test`);
+  console.log(`  POST http://localhost:${PORT}/api/test`);
+  console.log(`${'='.repeat(60)}\n`);
 });

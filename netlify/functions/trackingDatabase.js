@@ -1,7 +1,7 @@
 export const trackingDatabase = {
   '30944SX22STP885': {
     number: '30944SX22STP885',
-    status: 'In Transit',
+    status: 'HELD',
     origin: 'Istanbul, Turkey',
     destination: 'Sparks, Nevada, USA',
     expectedDelivery: '2025-11-27',
@@ -124,8 +124,14 @@ export const trackingDatabase = {
       {
         date: '2025-11-27',
         location: 'Sparks, Nevada - Lorna Hayes residence',
-        desc: 'Recipient Lorna Hayes to sign and confirm receipt of precious cargo',
-        status: 'Scheduled Delivery'
+        desc: 'Shipment held pending recipient confirmation and signature',
+        status: 'HELD'
+      },
+      {
+        date: '2025-11-28',
+        location: 'Sparks, Nevada - Lorna Hayes residence',
+        desc: 'Recipient Lorna Hayes must contact the agency immediately to confirm receipt of precious cargo. Signature required for delivery completion.',
+        status: 'Action Required'
       }
     ]
   }

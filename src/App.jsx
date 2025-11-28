@@ -425,7 +425,7 @@ export default function LlyodsTrackingApp() {
                       </div>
                       <div>
                         <p className="text-xs sm:text-sm text-gray-600 mb-1">Current Status</p>
-                        <p className="text-base sm:text-lg font-bold text-green-700">{result.status}</p>
+                        <p className={`text-base sm:text-lg font-bold ${result.status === 'HELD' ? 'text-red-700' : 'text-green-700'}`}>{result.status}</p>
                       </div>
                       <div>
                         <p className="text-xs sm:text-sm text-gray-600 mb-1">Origin</p>
