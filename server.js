@@ -4,8 +4,11 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@supabase/supabase-js';
-import { trackingDatabase } from './netlify/functions/trackingDatabase.js';
+import pkg from 'pg';
+import { trackingDatabase } from './data/trackingDatabase.js';
+import { initializeDatabase, submitContactForm, testContactSubmission, getSchemaStatus } from './db/database.js';
+
+const { Pool } = pkg;
 
 dotenv.config();
 
@@ -13,11 +16,20 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Initialize PostgreSQL connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Initialize database on startup
+let dbReady = false;
+initializeDatabase(pool).then(() => {
+  dbReady = true;
+  console.log('✅ PostgreSQL database initialized');
+}).catch(err => {
+  console.error('❌ Database initialization failed:', err.message);
+});
 
 // Middleware
 app.use(cors());
@@ -25,44 +37,19 @@ app.use(bodyParser.json());
 
 // Environment validation on startup
 function validateEnvironment() {
-  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const required = ['DATABASE_URL'];
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
     console.warn(`⚠️  Missing environment variables: ${missing.join(', ')}`);
-    console.warn('⚠️  Contact form will fail without these variables');
+    console.warn('⚠️  Database connection will fail without these variables');
   } else {
     console.log('✅ All required environment variables configured');
   }
 }
 
-// Supabase schema validation
-async function validateSupabaseSchema() {
-  try {
-    const { data, error } = await supabase
-      .from('contact_submissions')
-      .select('*')
-      .limit(0);
-
-    if (error) {
-      console.error('❌ Supabase schema validation failed:', error.message);
-      console.error('   Make sure "contact_submissions" table exists in your database');
-      return false;
-    }
-
-    console.log('✅ Supabase schema validated - contact_submissions table exists');
-    return true;
-  } catch (err) {
-    console.error('❌ Failed to validate Supabase schema:', err.message);
-    return false;
-  }
-}
-
 // Run validations on startup
 validateEnvironment();
-validateSupabaseSchema().catch(err => {
-  console.error('Schema validation error:', err);
-});
 
 // Routes
 
@@ -72,7 +59,8 @@ app.get('/api/health', (req, res) => {
     status: 'API is running',
     timestamp: new Date(),
     environment: {
-      supabaseConfigured: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
+      databaseConfigured: !!process.env.DATABASE_URL,
+      databaseReady: dbReady,
       nodeEnv: process.env.NODE_ENV || 'development'
     }
   };
@@ -133,10 +121,9 @@ app.get('/api/diagnostics', async (req, res) => {
       environment: process.env.NODE_ENV || 'development'
     },
     environment: {
-      supabaseUrlSet: !!process.env.SUPABASE_URL,
-      supabaseKeySet: !!process.env.SUPABASE_ANON_KEY
+      databaseUrlSet: !!process.env.DATABASE_URL
     },
-    supabase: {
+    database: {
       connected: false,
       tableExists: false,
       error: null
@@ -145,28 +132,30 @@ app.get('/api/diagnostics', async (req, res) => {
       track: '/api/track (POST)',
       contact: '/api/contact (POST)',
       health: '/api/health (GET)',
-      diagnostics: '/api/diagnostics (GET)'
+      diagnostics: '/api/diagnostics (GET)',
+      contactTest: '/api/contact-test (POST)'
     }
   };
 
-  // Test Supabase connection
+  // Test database connection
   try {
-    const { data, error } = await supabase
-      .from('contact_submissions')
-      .select('*')
-      .limit(0);
-
-    if (error) {
-      diagnostics.supabase.error = error.message;
-      console.error('❌ Supabase connection failed:', error.message);
+    const schemaStatus = await getSchemaStatus(pool);
+    if (schemaStatus.connected) {
+      diagnostics.database.connected = true;
+      diagnostics.database.tableExists = schemaStatus.tableExists;
+      console.log('✅ PostgreSQL connected');
+      if (schemaStatus.tableExists) {
+        console.log('✅ contact_submissions table exists');
+      } else {
+        console.warn('⚠️  contact_submissions table does not exist');
+      }
     } else {
-      diagnostics.supabase.connected = true;
-      diagnostics.supabase.tableExists = true;
-      console.log('✅ Supabase connected and table exists');
+      diagnostics.database.error = schemaStatus.error;
+      console.error('❌ Database connection failed:', schemaStatus.error);
     }
   } catch (err) {
-    diagnostics.supabase.error = err.message;
-    console.error('❌ Supabase test failed:', err.message);
+    diagnostics.database.error = err.message;
+    console.error('❌ Database test failed:', err.message);
   }
 
   res.json(diagnostics);
@@ -176,56 +165,42 @@ app.get('/api/diagnostics', async (req, res) => {
 app.post('/api/contact-test', async (req, res) => {
   console.log('🧪 Testing contact form submission...');
 
-  const testData = {
-    name: 'Test User',
-    email: 'test@example.com',
-    phone: '+1234567890',
-    subject: 'Test Submission',
-    message: 'This is a test contact form submission to verify the endpoint is working.'
-  };
-
   try {
-    // Validate environment
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    // Validate database
+    if (!process.env.DATABASE_URL) {
       return res.status(503).json({
         success: false,
-        message: 'Supabase not configured',
+        message: 'Database not configured',
         test: 'failed'
       });
     }
 
-    // Try to submit
-    const { data, error } = await supabase
-      .from('contact_submissions')
-      .insert([testData])
-      .select();
+    // Try to submit test data
+    const result = await testContactSubmission(pool, {
+      name: 'Test User',
+      email: 'test@example.com',
+      phone: '+1234567890',
+      subject: 'Test Submission',
+      message: 'This is a test contact form submission to verify the endpoint is working.'
+    });
 
-    if (error) {
-      console.error('❌ Test submission failed:', error.message);
-      return res.status(500).json({
+    if (result.success) {
+      console.log('✅ Test submission successful');
+      res.json({
+        success: true,
+        message: 'Test contact submission successful',
+        test: 'passed',
+        recordId: result.recordId
+      });
+    } else {
+      console.error('❌ Test submission failed:', result.error);
+      res.status(500).json({
         success: false,
         message: 'Test submission failed',
-        error: error.message,
+        error: result.error,
         test: 'failed'
       });
     }
-
-    if (!data || data.length === 0) {
-      console.error('❌ Test submission returned empty response');
-      return res.status(500).json({
-        success: false,
-        message: 'Test submission returned empty response',
-        test: 'failed'
-      });
-    }
-
-    console.log('✅ Test submission successful');
-    res.json({
-      success: true,
-      message: 'Test contact submission successful',
-      test: 'passed',
-      recordId: data[0].id
-    });
   } catch (err) {
     console.error('❌ Test submission error:', err.message);
     res.status(500).json({
@@ -282,9 +257,9 @@ app.post('/api/contact', async (req, res) => {
 
     console.log(`✓ [${timestamp}] All validations passed for ${email}`);
 
-    // Check if Supabase is configured
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-      console.error(`❌ [${timestamp}] Supabase not configured - cannot submit form`);
+    // Check if database is configured
+    if (!process.env.DATABASE_URL) {
+      console.error(`❌ [${timestamp}] Database not configured - cannot submit form`);
       return res.status(503).json({
         success: false,
         message: 'Database service temporarily unavailable',
@@ -292,60 +267,34 @@ app.post('/api/contact', async (req, res) => {
       });
     }
 
-    // Insert into Supabase with timeout
-    const insertPromise = supabase
-      .from('contact_submissions')
-      .insert([
-        {
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          subject: subject.trim(),
-          message: message.trim(),
-          ip_address: req.ip,
-          user_agent: req.get('user-agent')
-        }
-      ])
-      .select();
+    console.log(`🔄 [${timestamp}] Submitting to PostgreSQL database...`);
 
-    console.log(`🔄 [${timestamp}] Sending to Supabase...`);
+    // Submit to database
+    const result = await submitContactForm(pool, {
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent')
+    });
 
-    const { data, error } = await Promise.race([
-      insertPromise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Supabase timeout after 5000ms')), 5000)
-      )
-    ]);
+    if (!result.success) {
+      console.error(`❌ [${timestamp}] Database error:`, result.error);
 
-    if (error) {
-      console.error(`❌ [${timestamp}] Supabase error:`, error.message);
-      console.error('   Error code:', error.code);
-      console.error('   Error details:', error.details);
-
-      // Log to fallback (file/console for now)
+      // Log to fallback
       console.error('   FALLBACK LOG: Contact submission failed for', {
         email,
         timestamp,
-        errorMessage: error.message
+        errorMessage: result.error
       });
 
       return res.status(500).json({
         success: false,
         message: 'Failed to submit contact form. Please try again later.',
         timestamp,
-        error: process.env.NODE_ENV === 'development' ? {
-          message: error.message,
-          code: error.code
-        } : undefined
-      });
-    }
-
-    if (!data || data.length === 0) {
-      console.warn(`⚠️  [${timestamp}] Supabase returned empty response for ${email}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Form submitted but could not confirm receipt',
-        timestamp
+        error: process.env.NODE_ENV === 'development' ? result.error : undefined
       });
     }
 
@@ -355,9 +304,9 @@ app.post('/api/contact', async (req, res) => {
       message: 'Contact form submitted successfully',
       timestamp,
       data: {
-        id: data[0].id,
-        email: data[0].email,
-        submittedAt: data[0].created_at
+        id: result.recordId,
+        email: email,
+        submittedAt: result.submittedAt
       }
     });
   } catch (err) {
