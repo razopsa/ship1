@@ -53,40 +53,40 @@ export default function LlyodsTrackingApp() {
     // Sanitize input before sending
     const sanitized = sanitizeInput(number).toUpperCase();
 
-    // Simulate loading for 3-5 seconds
-    const delay = Math.random() * 2000 + 3000; // 3-5 seconds in milliseconds
+    // Call backend API with proper error handling and timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    setTimeout(() => {
-      // Call backend API with proper error handling
-      fetch(`${API_BASE_URL}/api/track`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ trackingNumber: sanitized }),
-        timeout: 10000, // 10 second timeout
+    fetch(`${API_BASE_URL}/api/track`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({ trackingNumber: sanitized }),
+      signal: controller.signal,
+    })
+      .then(response => {
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
       })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          return response.json();
-        })
-        .then(data => {
-          setLoading(false);
-          if (data.success && data.data) {
-            setResult(data.data);
-          } else {
-            setError(data.message || 'Unable to find shipment. Please check the tracking number.');
-          }
-        })
-        .catch(error => {
-          setLoading(false);
-          console.error('Tracking error:', error);
-          setError('Unable to connect to tracking service. Please try again later.');
-        });
-    }, delay);
+      .then(data => {
+        setLoading(false);
+        if (data.success && data.data) {
+          setResult(data.data);
+        } else {
+          setError(data.message || 'Unable to find shipment. Please check the tracking number.');
+        }
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        setLoading(false);
+        console.error('Tracking error:', error);
+        setError('Unable to connect to tracking service. Please try again later.');
+      });
   }
 
   function handleSubmit(e) {
